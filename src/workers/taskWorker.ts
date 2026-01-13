@@ -7,10 +7,18 @@ export async function taskWorker() {
     const taskRunner = new TaskRunner(taskRepository);
 
     while (true) {
-        const task = await taskRepository.findOne({
-            where: { status: TaskStatus.Queued },
-            relations: ['workflow'] // Ensure workflow is loaded
-        });
+        // Find queued tasks where dependency is null OR dependency is completed
+        const task = await taskRepository
+            .createQueryBuilder('task')
+            .leftJoinAndSelect('task.workflow', 'workflow')
+            .leftJoinAndSelect('task.dependency', 'dependency')
+            .where('task.status = :status', { status: TaskStatus.Queued })
+            .andWhere(
+                '(task.dependencyId IS NULL OR dependency.status = :completedStatus)',
+                { completedStatus: TaskStatus.Completed }
+            )
+            .orderBy('task.stepNumber', 'ASC')
+            .getOne();
 
         if (task) {
             try {

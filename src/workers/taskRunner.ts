@@ -61,8 +61,62 @@ export class TaskRunner {
 
             if (anyFailed) {
                 currentWorkflow.status = WorkflowStatus.Failed;
+                // Include failure information in finalResult
+                const resultRepository = this.taskRepository.manager.getRepository(Result);
+                const taskResults = [];
+                for (const t of currentWorkflow.tasks) {
+                    const taskOutput: any = {
+                        taskId: t.taskId,
+                        taskType: t.taskType,
+                        status: t.status
+                    };
+                    if (t.status === TaskStatus.Failed) {
+                        taskOutput.error = 'Task execution failed';
+                    } else if (t.resultId) {
+                        const result = await resultRepository.findOne({
+                            where: { resultId: t.resultId }
+                        });
+                        if (result?.data) {
+                            taskOutput.output = JSON.parse(result.data);
+                        }
+                    }
+                    taskResults.push(taskOutput);
+                }
+                currentWorkflow.finalResult = JSON.stringify({
+                    completedAt: new Date().toISOString(),
+                    status: 'failed',
+                    tasks: taskResults
+                });
             } else if (allCompleted) {
                 currentWorkflow.status = WorkflowStatus.Completed;
+                // Aggregate results from all tasks
+                const resultRepository = this.taskRepository.manager.getRepository(Result);
+                const taskResults = [];
+
+                for (const t of currentWorkflow.tasks) {
+                    const taskOutput: any = {
+                        taskId: t.taskId,
+                        taskType: t.taskType,
+                        status: t.status
+                    };
+
+                    if (t.resultId) {
+                        const result = await resultRepository.findOne({
+                            where: { resultId: t.resultId }
+                        });
+                        if (result?.data) {
+                            taskOutput.output = JSON.parse(result.data);
+                        }
+                    }
+
+                    taskResults.push(taskOutput);
+                }
+
+                currentWorkflow.finalResult = JSON.stringify({
+                    completedAt: new Date().toISOString(),
+                    status: 'completed',
+                    tasks: taskResults
+                });
             } else {
                 currentWorkflow.status = WorkflowStatus.InProgress;
             }

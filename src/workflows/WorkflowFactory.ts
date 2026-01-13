@@ -15,6 +15,8 @@ export enum WorkflowStatus {
 interface WorkflowStep {
     taskType: string;
     stepNumber: number;
+    name?: string;
+    dependsOn?: string;
 }
 
 interface WorkflowDefinition {
@@ -44,6 +46,8 @@ export class WorkflowFactory {
 
         const savedWorkflow = await workflowRepository.save(workflow);
 
+        // First pass: create all tasks and store by name
+        const tasksByName: Map<string, Task> = new Map();
         const tasks: Task[] = workflowDef.steps.map(step => {
             const task = new Task();
             task.clientId = clientId;
@@ -51,11 +55,29 @@ export class WorkflowFactory {
             task.status = TaskStatus.Queued;
             task.taskType = step.taskType;
             task.stepNumber = step.stepNumber;
+            task.name = step.name;
             task.workflow = savedWorkflow;
+
+            if (step.name) {
+                tasksByName.set(step.name, task);
+            }
             return task;
         });
 
+        // Save all tasks first to get IDs
         await taskRepository.save(tasks);
+
+        // Second pass: link dependencies
+        for (const step of workflowDef.steps) {
+            if (step.dependsOn && step.name) {
+                const task = tasksByName.get(step.name);
+                const dependencyTask = tasksByName.get(step.dependsOn);
+                if (task && dependencyTask) {
+                    task.dependencyId = dependencyTask.taskId;
+                    await taskRepository.save(task);
+                }
+            }
+        }
 
         return savedWorkflow;
     }
