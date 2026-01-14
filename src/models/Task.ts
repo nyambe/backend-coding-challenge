@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { Workflow } from './Workflow';
 import {TaskStatus} from "../workers/taskRunner";
 
@@ -30,4 +30,12 @@ export class Task {
 
     @ManyToOne(() => Workflow, workflow => workflow.tasks)
     workflow!: Workflow;
+
+    // Reference to a task that must complete before this one can run
+    @ManyToOne(() => Task, { nullable: true })
+    @JoinColumn({ name: 'dependencyId' })
+    dependency?: Task | null;
+
+    @Column({ nullable: true })
+    dependencyId?: string | null;
 }

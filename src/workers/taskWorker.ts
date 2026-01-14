@@ -7,14 +7,31 @@ export async function taskWorker() {
     const taskRunner = new TaskRunner(taskRepository);
 
     while (true) {
-        const task = await taskRepository.findOne({
+        // Find queued tasks and check their dependencies
+        const queuedTasks = await taskRepository.find({
             where: { status: TaskStatus.Queued },
-            relations: ['workflow'] // Ensure workflow is loaded
+            relations: ['workflow', 'dependency'],
+            order: { stepNumber: 'ASC' }
         });
 
-        if (task) {
+        // Find a task that's ready to run (no dependency or dependency completed)
+        let taskToRun: Task | null = null;
+        for (const task of queuedTasks) {
+            if (!task.dependencyId) {
+                // No dependency, can run immediately
+                taskToRun = task;
+                break;
+            } else if (task.dependency && task.dependency.status === TaskStatus.Completed) {
+                // Dependency is completed, can run
+                taskToRun = task;
+                break;
+            }
+            // If dependency exists but is not completed, skip this task for now
+        }
+
+        if (taskToRun) {
             try {
-                await taskRunner.run(task);
+                await taskRunner.run(taskToRun);
 
             } catch (error) {
                 console.error('Task execution failed. Task status has already been updated by TaskRunner.');
