@@ -74,7 +74,7 @@ src
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/yourusername/backend-coding-challenge.git
+   git clone https://github.com/nyambe/backend-coding-challenge.git
    cd backend-coding-challenge
    ```
 
