@@ -1,6 +1,6 @@
 # Backend Coding Challenge
 
-** Renamed Readme.md README.md **
+** Renamed README.md to Readme.md **
 
 This repository demonstrates a backend architecture that handles asynchronous tasks, workflows, and job execution using TypeScript, Express.js, and TypeORM. The project showcases how to:
 
