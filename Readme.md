@@ -293,3 +293,208 @@ Implement an API endpoint to retrieve the final results of a completed workflow.
 
 ---
 
+## Implementation Documentation
+
+### New Jobs
+
+#### PolygonAreaJob
+Calculates the area of a polygon from GeoJSON using `@turf/area`.
+
+**Location:** `src/jobs/PolygonAreaJob.ts`
+
+**Output:**
+```json
+{
+    "area": 8363324.273315565,
+    "unit": "square meters"
+}
+```
+
+#### ReportGenerationJob
+Aggregates outputs from all preceding tasks in the workflow into a JSON report.
+
+**Location:** `src/jobs/ReportGenerationJob.ts`
+
+**Output:**
+```json
+{
+    "workflowId": "<workflow-id>",
+    "tasks": [
+        { "taskId": "<id>", "type": "analysis", "status": "completed", "output": "Brazil" },
+        { "taskId": "<id>", "type": "polygonArea", "status": "completed", "output": { "area": 8363324, "unit": "square meters" } }
+    ],
+    "finalReport": "Workflow completed with 2 successful tasks and 0 failed tasks.",
+    "generatedAt": "2026-01-13T19:22:30.198Z"
+}
+```
+
+### Task Dependencies
+
+Tasks can now depend on other tasks using the `dependsOn` field in the workflow YAML:
+
+```yaml
+name: "example_workflow"
+steps:
+  - taskType: "analysis"
+    stepNumber: 1
+  - taskType: "polygonArea"
+    stepNumber: 2
+    dependsOn: 1
+  - taskType: "report"
+    stepNumber: 3
+    dependsOn: 2
+  - taskType: "notification"
+    stepNumber: 4
+    dependsOn: 3
+```
+
+Tasks with dependencies will not execute until their dependency has completed.
+
+---
+
+## API Endpoints
+
+### POST /analysis
+Creates a new workflow with tasks from the YAML definition.
+
+**Request:**
+```bash
+curl -X POST http://localhost:3000/analysis \
+-H "Content-Type: application/json" \
+-d '{
+    "clientId": "client123",
+    "geoJson": {
+        "type": "Polygon",
+        "coordinates": [[[-63.62, -10.31], [-63.62, -10.36], [-63.61, -10.36], [-63.61, -10.31], [-63.62, -10.31]]]
+    }
+}'
+```
+
+**Response (202 Accepted):**
+```json
+{
+    "workflowId": "3433c76d-f226-4c91-afb5-7dfc7accab24",
+    "message": "Workflow created and tasks queued from YAML definition."
+}
+```
+
+---
+
+### GET /workflow/:id/status
+Retrieves the current status of a workflow.
+
+**Request:**
+```bash
+curl http://localhost:3000/workflow/3433c76d-f226-4c91-afb5-7dfc7accab24/status
+```
+
+**Response (200 OK):**
+```json
+{
+    "workflowId": "3433c76d-f226-4c91-afb5-7dfc7accab24",
+    "status": "in_progress",
+    "completedTasks": 3,
+    "totalTasks": 4
+}
+```
+
+**Response (404 Not Found):**
+```json
+{
+    "error": "Workflow not found",
+    "message": "No workflow found with ID: invalid-id"
+}
+```
+
+---
+
+### GET /workflow/:id/results
+Retrieves the final results of a completed workflow.
+
+**Request:**
+```bash
+curl http://localhost:3000/workflow/3433c76d-f226-4c91-afb5-7dfc7accab24/results
+```
+
+**Response (200 OK):**
+```json
+{
+    "workflowId": "3433c76d-f226-4c91-afb5-7dfc7accab24",
+    "status": "completed",
+    "finalResult": {
+        "workflowId": "3433c76d-f226-4c91-afb5-7dfc7accab24",
+        "clientId": "client123",
+        "status": "completed",
+        "completedAt": "2026-01-13T19:22:35.740Z",
+        "tasks": [
+            { "taskId": "...", "taskType": "analysis", "stepNumber": 1, "status": "completed", "output": "Brazil" },
+            { "taskId": "...", "taskType": "polygonArea", "stepNumber": 2, "status": "completed", "output": { "area": 8363324.27, "unit": "square meters" } },
+            { "taskId": "...", "taskType": "report", "stepNumber": 3, "status": "completed", "output": { ... } },
+            { "taskId": "...", "taskType": "notification", "stepNumber": 4, "status": "completed", "output": {} }
+        ]
+    }
+}
+```
+
+**Response (400 Bad Request):**
+```json
+{
+    "error": "Workflow not completed",
+    "message": "Workflow is still in progress. Please wait for it to complete.",
+    "currentStatus": "in_progress"
+}
+```
+
+**Response (404 Not Found):**
+```json
+{
+    "error": "Workflow not found",
+    "message": "No workflow found with ID: invalid-id"
+}
+```
+
+---
+
+## Running Tests
+
+Run the unit tests with:
+
+```bash
+npm test
+```
+
+**Test Coverage:**
+- `PolygonAreaJob.test.ts` - Tests polygon area calculation, Feature objects, invalid GeoJSON handling
+- `workflowRoutes.test.ts` - Tests workflow status and results endpoints
+
+---
+
+## Testing the New Features
+
+### 1. Create a Workflow
+```bash
+curl -X POST http://localhost:3000/analysis \
+-H "Content-Type: application/json" \
+-d '{
+    "clientId": "test-client",
+    "geoJson": {
+        "type": "Polygon",
+        "coordinates": [[[-63.62, -10.31], [-63.62, -10.36], [-63.61, -10.36], [-63.61, -10.31], [-63.62, -10.31]]]
+    }
+}'
+```
+
+### 2. Check Workflow Status
+```bash
+curl http://localhost:3000/workflow/<workflowId>/status
+```
+
+### 3. Get Final Results (after completion)
+```bash
+curl http://localhost:3000/workflow/<workflowId>/results
+```
+
+The workflow will execute tasks in order: `analysis` -> `polygonArea` -> `report` -> `notification`, respecting dependencies.
+
+---
+
